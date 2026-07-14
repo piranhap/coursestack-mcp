@@ -51,6 +51,17 @@ def _text_doc(markdown: str, system_id: str | None = None) -> dict:
     return {"type": "lesson", "id": _uid("l-"), "items": items}
 
 
+def _objectives_md(mod: dict) -> str:
+    lines = ["# Objetivos del módulo\n"]
+    if mod.get("level"):
+        lines.append(f"**Nivel:** {mod['level']}  ")
+    if mod.get("duration"):
+        lines.append(f"**Duración estimada:** {mod['duration']}")
+    lines.append("\nAl completar este módulo serás capaz de:\n")
+    lines += [f"- {o}" for o in mod["objectives"]]
+    return "\n".join(lines)
+
+
 def _quiz_doc(questions) -> dict:
     items = []
     for q, answers in questions:
@@ -159,12 +170,21 @@ def build(course: dict) -> dict:
     for mod in course["modules"]:
         ch_id = _ensure_chapter(cid, mod["name"], chapters)
         order: list[str] = []
+        # premium: a learning-objectives lesson at the top of the module
+        if mod.get("objectives"):
+            _ensure_lesson(cid, ch_id, "Objetivos del módulo", "lesson",
+                           _text_doc(_objectives_md(mod)), index)
+            order.append("Objetivos del módulo")
         for les in mod["lessons"]:
             kind = les["kind"]
             if kind in ("text", "lab"):
                 use_sys = sys_id if (kind == "lab" and les.get("system", True)) else None
+                md = les["markdown"]
+                if kind == "lab" and les.get("rubric"):
+                    md += "\n\n## Rúbrica de evaluación\n\n" + \
+                          "\n".join(f"- {r}" for r in les["rubric"])
                 _ensure_lesson(cid, ch_id, les["name"], "lesson",
-                               _text_doc(les["markdown"], use_sys), index)
+                               _text_doc(md, use_sys), index)
                 order.append(les["name"])
                 if kind == "lab" and les.get("solution_markdown"):
                     sol_name = f"Solución comentada: {les['name']}"
